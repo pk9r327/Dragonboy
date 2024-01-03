@@ -1,12 +1,10 @@
 ﻿using DiscordRPC;
 using HardwareId;
 using QLTK.Models;
-using QLTK.Properties;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -19,6 +17,12 @@ namespace QLTK
 {
     public partial class Utilities
     {
+        private const int FileTimeStampIndex = 0x00000088;
+        private const string GameAssemblyPath = @"Game_Data\Managed\Assembly-CSharp.dll";
+        private const string QLTKPath = @"QLTK.dll";
+        private static AppConfig _appConfig;
+        private static SaveSettings _saveSettings;
+
         internal static DevelopStatus currentDevelopStatus;
 
         internal static List<Server> LoadServersFromFile()
@@ -39,15 +43,6 @@ namespace QLTK
 
         public static string EncryptString(string data)
         {
-            //using var tripleDESCryptoServiceProvider = new TripleDESCryptoServiceProvider
-            //{
-            //    KeySize = 128,
-            //    BlockSize = 64,
-            //    Padding = PaddingMode.PKCS7,
-            //    Mode = CipherMode.CBC,
-            //    Key = Key,
-            //    IV = IV
-            //};
             using var des = TripleDES.Create();
             des.KeySize = 128;
             des.BlockSize = 64;
@@ -169,10 +164,10 @@ namespace QLTK
             {
                 using var client = new HttpClient();
 
-                string linkNotification = Settings.Default.LinkNotification;
+                string linkNotification = _appConfig.LinkNotification;
                 string[] notifications = (await client.GetStringAsync(linkNotification)).Split('\n');
 
-                if (SaveSettings.Instance.versionNotification != notifications[0])
+                if (_saveSettings.VersionNotification != notifications[0])
                 {
                     for (int i = 1; i < notifications.Length; i++)
                     {
@@ -185,13 +180,13 @@ namespace QLTK
                                 MessageBoxButton.OK, MessageBoxImage.Information);
                         }
                     }
-                    SaveSettings.Instance.versionNotification = notifications[0];
+                    _saveSettings.VersionNotification = notifications[0];
                 }
 
                 switch (currentDevelopStatus = await GetCurrentDevelopStatus())
                 {
                     case DevelopStatus.None:
-                        throw new NullReferenceException(nameof(currentDevelopStatus) + " is not initialized!");
+                        throw new InvalidOperationException(nameof(currentDevelopStatus) + " is not initialized!");
                     case DevelopStatus.NormalUser:
                         break;
                     case DevelopStatus.Developing:
@@ -225,28 +220,28 @@ namespace QLTK
             {
                 using var client = new HttpClient();
 
-                string linkHash = Settings.Default.LinkHash;
-                string[] remoteInfo = (await client.GetStringAsync(linkHash)).Split('\n');
+                string remoteInfoString = await client.GetStringAsync(_appConfig.LinkHash);
+                string[] remoteInfo = remoteInfoString.Split('\n');
 
-                string hashGameAssemblyLocal = BitConverter.ToString(MD5.HashData(File.ReadAllBytes(@"Game_Data\Managed\Assembly-CSharp.dll"))).Replace("-", "");
-                string hashQLTKLocal = BitConverter.ToString(MD5.HashData(File.ReadAllBytes("QLTK.dll"))).Replace("-", "");
-
+                // hash check
                 string hashGameAssemblyRemote = remoteInfo[0].TrimStart('\ufeff');
                 string hashQLTKRemote = remoteInfo[2];
-
-                if (hashQLTKLocal != hashQLTKRemote || hashGameAssemblyLocal != hashGameAssemblyRemote)
+                string hashGameAssemblyLocal = GetHashFile(GameAssemblyPath);
+                string hashQLTKLocal = GetHashFile(QLTKPath);
+                if (hashQLTKLocal == hashQLTKRemote && hashGameAssemblyLocal == hashGameAssemblyRemote)
                 {
-                    int timeStampGameAssemblyRemote = int.Parse(remoteInfo[1]);
-                    int timeStampQLTKRemote = int.Parse(remoteInfo[3]);
-                    int timeStampGameAssemblyLocal = BitConverter.ToInt32(File.ReadAllBytes(@"Game_Data\Managed\Assembly-CSharp.dll"), 0x00000088);
-                    int timeStampQLTKLocal = BitConverter.ToInt32(File.ReadAllBytes(@"QLTK.dll"), 0x00000088);
-                    if (timeStampGameAssemblyLocal >= timeStampGameAssemblyRemote || timeStampQLTKLocal >= timeStampQLTKRemote)
-                        return DevelopStatus.Developing;
-                    else if (timeStampGameAssemblyLocal < timeStampGameAssemblyRemote || timeStampQLTKLocal < timeStampQLTKRemote)
-                        return DevelopStatus.OldVersion;
-                }
-                else
                     return DevelopStatus.NormalUser;
+                }
+
+                // time stamp check
+                int timeStampGameAssemblyRemote = int.Parse(remoteInfo[1]);
+                int timeStampQLTKRemote = int.Parse(remoteInfo[3]);
+                int timeStampGameAssemblyLocal = GetTimeStampFile(GameAssemblyPath);
+                int timeStampQLTKLocal = GetTimeStampFile(QLTKPath);
+                if (timeStampGameAssemblyLocal >= timeStampGameAssemblyRemote || timeStampQLTKLocal >= timeStampQLTKRemote)
+                    return DevelopStatus.Developing;
+                if (timeStampGameAssemblyLocal < timeStampGameAssemblyRemote || timeStampQLTKLocal < timeStampQLTKRemote)
+                    return DevelopStatus.OldVersion;
             }
             catch (HttpRequestException ex)
             {
@@ -303,6 +298,19 @@ namespace QLTK
                     break;
             }
             return name;
+        }
+
+        public static int GetTimeStampFile(string path)
+        {
+            var bytes = File.ReadAllBytes(path);
+            return BitConverter.ToInt32(bytes, FileTimeStampIndex);
+        }
+
+        public static string GetHashFile(string path)
+        {
+            var bytes = File.ReadAllBytes(QLTKPath);
+            var hashed = MD5.HashData(bytes);
+            return BitConverter.ToString(hashed).Replace("-", "");
         }
     }
 

@@ -34,6 +34,9 @@ namespace QLTK
         // Thread signal.  
         public static ManualResetEvent allDone { get; } = new ManualResetEvent(false);
 
+        private static AppConfig _appConfig;
+        private static SaveSettings _saveSettings;
+
         private static void onMessage(JsonData msg, StateObject state)
         {
             string action = (string)msg["action"];
@@ -75,9 +78,9 @@ namespace QLTK
                     state.account.xu = (long)msg["xu"];
                     state.account.luong = (int)msg["luong"];
                     state.account.luongKhoa = (int)msg["luongKhoa"];
-                    if (SaveSettings.accountConnectToDiscordRPC != null && state.account == SaveSettings.accountConnectToDiscordRPC)
+                    if (_saveSettings.AccountConnectToDiscordRPC != null && state.account == _saveSettings.AccountConnectToDiscordRPC)
                         Utilities.SetPresence($"Map: {state.account.mapName} [{state.account.mapID}], Khu: {state.account.zoneID}", $"{state.account.cName} ({state.account.server.name})", Program.timestampsStartQLTK);
-                    else if (SaveSettings.accountConnectToDiscordRPC == null || (SaveSettings.accountConnectToDiscordRPC.process != null && SaveSettings.accountConnectToDiscordRPC.process.HasExited))
+                    else if (_saveSettings.AccountConnectToDiscordRPC == null || (_saveSettings.AccountConnectToDiscordRPC.process != null && _saveSettings.AccountConnectToDiscordRPC.process.HasExited))
                         Utilities.SetPresence("Thông tin bị ẩn", "Đã đăng nhập", Program.timestampsStartQLTK);
                     break;
                 case "setStatus":
@@ -134,7 +137,7 @@ namespace QLTK
             // host running the application.  
             IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
             IPAddress ipAddress = ipHostInfo.AddressList[0];
-            IPEndPoint localEndPoint = new IPEndPoint(ipAddress, Settings.Default.PortListener);
+            IPEndPoint localEndPoint = new IPEndPoint(ipAddress, _appConfig.PortListener);
 
             // Create a TCP/IP socket.  
             Socket listener = new Socket(ipAddress.AddressFamily,
@@ -207,8 +210,13 @@ namespace QLTK
             catch (SocketException)
             {
                 state.account.status = "-";
-                if ((SaveSettings.Instance.indexConnectToDiscordRPC == -1 || state.account == SaveSettings.accountConnectToDiscordRPC) && Application.Current.Dispatcher.Invoke(() => ((MainWindow)Application.Current.MainWindow).GetAllAccounts().Where(a => a.status != "-" && !string.IsNullOrEmpty(a.status)).Count() == 0))
+                if ((_saveSettings.IndexConnectToDiscordRPC == -1 || state.account == _saveSettings.AccountConnectToDiscordRPC) &&
+                    Application.Current.Dispatcher.Invoke(() =>
+                        !((MainWindow)Application.Current.MainWindow).GetAllAccounts()
+                            .Where(a => a.status != "-" && !string.IsNullOrEmpty(a.status)).Any()))
+                {
                     Utilities.SetPresence();
+                }
             }
 
             if (bytesRead > 0)
@@ -224,7 +232,7 @@ namespace QLTK
                     handler.Shutdown(SocketShutdown.Both);
                     handler.Close();
                     state.account.status = "-";
-                    if ((SaveSettings.Instance.indexConnectToDiscordRPC == -1 || state.account == SaveSettings.accountConnectToDiscordRPC) && Application.Current.Dispatcher.Invoke(() => ((MainWindow)Application.Current.MainWindow).GetAllAccounts().Where(a => a.status != "-" && !string.IsNullOrEmpty(a.status)).Count() == 0))
+                    if ((_saveSettings.IndexConnectToDiscordRPC == -1 || state.account == _saveSettings.AccountConnectToDiscordRPC) && Application.Current.Dispatcher.Invoke(() => !((MainWindow)Application.Current.MainWindow).GetAllAccounts().Where(a => a.status != "-" && !string.IsNullOrEmpty(a.status)).Any()))
                         Utilities.SetPresence();
                     return;
                 }

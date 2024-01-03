@@ -21,6 +21,8 @@ namespace QLTK
         [STAThread]
         static void Main(string[] args)
         {
+
+
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             if (mutex.WaitOne(TimeSpan.Zero, true))
             {

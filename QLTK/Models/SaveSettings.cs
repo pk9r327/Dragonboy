@@ -1,5 +1,4 @@
-﻿using QLTK.Properties;
-using System;
+﻿using System;
 using System.IO;
 using System.Windows;
 
@@ -8,25 +7,24 @@ namespace QLTK.Models
     public class SaveSettings
     {
         [LitJSON.JsonSkip]
-        public static SaveSettings Instance { get; } = LoadSaveSettings();
+        private AppConfig _appConfig;
 
-        public string versionNotification;
-
-        public string size = "1024x600";
-        public int lowGraphic = 1;
-        public int typeSize = 2;
-        public int rowDetailsMode = 0;
-
-        public int indexConnectToDiscordRPC = -1;
+        public string VersionNotification { get; set; }
+        public string Size { get; set; } = "1024x600";
+        public int LowGraphic { get; set; } = 1;
+        public int TypeSize { get; set; } = 2;
+        public int RowDetailsMode { get; set; } = 0;
+        public int IndexConnectToDiscordRPC { get; set; } = -1;
 
         [LitJSON.JsonSkip]
-        public static Account accountConnectToDiscordRPC;
-        private static SaveSettings LoadSaveSettings()
+        public Account AccountConnectToDiscordRPC { get; set; }
+
+        private SaveSettings LoadSaveSettings()
         {
             try
             {
                 return LitJson.JsonMapper.ToObject<SaveSettings>(
-                    File.ReadAllText(Settings.Default.PathSettings));
+                    File.ReadAllText(_appConfig.PathSettings));
             }
             catch (Exception e)
             {
@@ -44,12 +42,12 @@ namespace QLTK.Models
             }
         }
 
-        public static void Save()
+        public void Save()
         {
             try
             {
-                File.WriteAllText(Settings.Default.PathSettings,
-                    LitJson.JsonMapper.ToJson(Instance));
+                File.WriteAllText(_appConfig.PathSettings,
+                    LitJson.JsonMapper.ToJson(this));
             }
             catch (Exception e)
             {

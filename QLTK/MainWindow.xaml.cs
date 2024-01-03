@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -44,6 +45,10 @@ namespace QLTK
         static int width, height;
 
         static bool canSetRichPresence;
+
+        private AppConfig _appConfig;
+        private SaveSettings _saveSettings;
+
         static MainWindow()
         {
             Servers.AddRange(Utilities.LoadServersFromFile());
@@ -66,14 +71,14 @@ namespace QLTK
 
             this.LoadAccounts();
             this.LoadSaveSettings();
-            if (SaveSettings.Instance.indexConnectToDiscordRPC >= 0 && SaveSettings.Instance.indexConnectToDiscordRPC < AccountsDataGrid.Items.Count)
-                SaveSettings.accountConnectToDiscordRPC = AccountsDataGrid.Items[SaveSettings.Instance.indexConnectToDiscordRPC] as Account;
+            if (_saveSettings.IndexConnectToDiscordRPC >= 0 && _saveSettings.IndexConnectToDiscordRPC < AccountsDataGrid.Items.Count)
+                _saveSettings.AccountConnectToDiscordRPC = AccountsDataGrid.Items[_saveSettings.IndexConnectToDiscordRPC] as Account;
             new Thread(async () =>
             {
                 await Utilities.CheckUpdateAndNotification();
                 Dispatcher.Invoke(() => Title = Utilities.GetWindowTitle());
                 Utilities.SetPresence();
-            }) 
+            })
             {
                 IsBackground = true,
                 Name = "CheckUpdateAndNotification"
@@ -191,9 +196,14 @@ namespace QLTK
         {
             try
             {
-                if (!Directory.Exists("ModData")) Directory.CreateDirectory("ModData");
-                File.WriteAllText(Settings.Default.PathAccounts,
-                    Utilities.EncryptString(LitJson.JsonMapper.ToJson(this.AccountsDataGrid.ItemsSource)));
+                if (!Directory.Exists(_appConfig.ModDataFolder))
+                    Directory.CreateDirectory(_appConfig.ModDataFolder);
+
+                var accounts = this.AccountsDataGrid.ItemsSource;
+                var accountsJson = LitJson.JsonMapper.ToJson(accounts);
+                var encrypted = Utilities.EncryptString(accountsJson);
+
+                File.WriteAllText(_appConfig.PathAccounts, encrypted);
             }
             catch (Exception ex)
             {
@@ -203,12 +213,12 @@ namespace QLTK
 
         private void DoSaveSettings()
         {
-            SaveSettings.Instance.size = this.TextBoxSize.Text;
-            SaveSettings.Instance.lowGraphic = this.ComboBoxLowGraphic.SelectedIndex;
-            SaveSettings.Instance.typeSize = this.ComboBoxTypeSize.SelectedIndex;
-            SaveSettings.Instance.rowDetailsMode = this.RowDetailsModeComboBox.SelectedIndex;
+            _saveSettings.Size = this.TextBoxSize.Text;
+            _saveSettings.LowGraphic = this.ComboBoxLowGraphic.SelectedIndex;
+            _saveSettings.TypeSize = this.ComboBoxTypeSize.SelectedIndex;
+            _saveSettings.RowDetailsMode = this.RowDetailsModeComboBox.SelectedIndex;
 
-            SaveSettings.Save();
+            _saveSettings.Save();
         }
         #endregion
 
@@ -218,7 +228,7 @@ namespace QLTK
             try
             {
                 this.AccountsDataGrid.ItemsSource = LitJson.JsonMapper.ToObject<List<Account>>(
-                    Utilities.DecryptString(File.ReadAllText(Settings.Default.PathAccounts)));
+                    Utilities.DecryptString(File.ReadAllText(_appConfig.PathAccounts)));
             }
             catch
             {
@@ -229,10 +239,10 @@ namespace QLTK
 
         private void LoadSaveSettings()
         {
-            this.TextBoxSize.Text = SaveSettings.Instance.size;
-            this.ComboBoxLowGraphic.SelectedIndex = SaveSettings.Instance.lowGraphic;
-            this.ComboBoxTypeSize.SelectedIndex = SaveSettings.Instance.typeSize;
-            this.RowDetailsModeComboBox.SelectedIndex = SaveSettings.Instance.rowDetailsMode;
+            this.TextBoxSize.Text = _saveSettings.Size;
+            this.ComboBoxLowGraphic.SelectedIndex = _saveSettings.LowGraphic;
+            this.ComboBoxTypeSize.SelectedIndex = _saveSettings.TypeSize;
+            this.RowDetailsModeComboBox.SelectedIndex = _saveSettings.RowDetailsMode;
         }
         #endregion
 
@@ -282,32 +292,42 @@ namespace QLTK
 
         private async Task OpenGameAsync(Account account)
         {
-            if (account.process == null || account.process.HasExited)
+            // If the process is running, do nothing
+            if (account.process != null && !account.process.HasExited)
             {
-                account.status = "Đang khởi động...";
-                this.AccountsDataGrid.Items.Refresh();
+                return;
+            }
 
-                AsynchronousSocketListener.WaitingAccounts.Add(account);
+            account.status = "Đang khởi động...";
+            this.AccountsDataGrid.Items.Refresh();
 
-                account.process = Process.Start(Settings.Default.PathGame,
-                    $"-port {Settings.Default.PortListener} -screen-width {width} -screen-height {height} -screen-fullscreen {FullScreenCheckBox.IsChecked}");
+            AsynchronousSocketListener.WaitingAccounts.Add(account);
 
-                while (account.process.MainWindowHandle == IntPtr.Zero)
-                {
-                    await Task.Delay(50);
-                }
+            var argumentsBuilder = new StringBuilder()
+                .AppendFormat("-port {0} ", _appConfig.PortListener)
+                .AppendFormat("-screen-width {0} ", width)
+                .AppendFormat("-screen-height {0} ", height)
+                .AppendFormat("-screen-fullscreen {0}", FullScreenCheckBox.IsChecked);
 
-                var hWnd = account.process.MainWindowHandle;
-                Utilities.SetWindowText(hWnd, account.username);
-                if (!FullScreenCheckBox.IsChecked.Value)
-                {
-                    Utilities.GetWindowRect(hWnd, out RECT rect);
-                    Utilities.MoveWindow(
-                        hWnd, x: rect.left - rect.right, y: 0,
-                        width: rect.right - rect.left,
-                        height: rect.bottom - rect.top,
-                        bRepaint: true);
-                }
+            var arguments = argumentsBuilder.ToString();
+
+            account.process = Process.Start(_appConfig.PathGame, arguments);
+
+            while (account.process.MainWindowHandle == IntPtr.Zero)
+            {
+                await Task.Delay(50);
+            }
+
+            var hWnd = account.process.MainWindowHandle;
+            Utilities.SetWindowText(hWnd, account.username);
+            if (!FullScreenCheckBox.IsChecked.Value)
+            {
+                Utilities.GetWindowRect(hWnd, out RECT rect);
+                Utilities.MoveWindow(
+                    hWnd, x: rect.left - rect.right, y: 0,
+                    width: rect.right - rect.left,
+                    height: rect.bottom - rect.top,
+                    bRepaint: true);
             }
         }
         #endregion
@@ -566,7 +586,7 @@ namespace QLTK
                 this.PasswordPasswordBox.Password = account.password;
                 this.ServerComboBox.SelectedIndex = account.indexServer;
                 canSetRichPresence = false;
-                if (account.Equals(SaveSettings.accountConnectToDiscordRPC))
+                if (account.Equals(_saveSettings.AccountConnectToDiscordRPC))
                     IsDisplayInDiscordRichPresence.IsChecked = true;
                 else
                     IsDisplayInDiscordRichPresence.IsChecked = false;
@@ -580,7 +600,7 @@ namespace QLTK
             {
                 canSetRichPresence = true;
                 this.MainGrid.IsEnabled = false;
-                
+
                 if (ExistedWindow(account, out IntPtr hWnd))
                 {
                     if (!FullScreenCheckBox.IsChecked.Value)
@@ -596,10 +616,10 @@ namespace QLTK
                     return;
                 }
 
-                if (account.Equals(SaveSettings.accountConnectToDiscordRPC))
+                if (account.Equals(_saveSettings.AccountConnectToDiscordRPC))
                     IsDisplayInDiscordRichPresence_Checked(sender, null);
                 await this.OpenGameAsync(account);
-                
+
                 this.MainGrid.IsEnabled = true;
             }
         }
@@ -641,10 +661,10 @@ namespace QLTK
             var accounts = this.GetSelectedAccounts();
             foreach (var account in accounts)
             {
-                if (account.Equals(SaveSettings.accountConnectToDiscordRPC))
+                if (account.Equals(_saveSettings.AccountConnectToDiscordRPC))
                 {
-                    SaveSettings.accountConnectToDiscordRPC = null;
-                    SaveSettings.Instance.indexConnectToDiscordRPC = -1;
+                    _saveSettings.AccountConnectToDiscordRPC = null;
+                    _saveSettings.IndexConnectToDiscordRPC = -1;
                 }
                 this.GetAllAccounts().Remove(account);
             }
@@ -700,8 +720,8 @@ namespace QLTK
         {
             if (!canSetRichPresence)
                 return;
-            SaveSettings.Instance.indexConnectToDiscordRPC = AccountsDataGrid.SelectedIndex;
-            SaveSettings.accountConnectToDiscordRPC = AccountsDataGrid.SelectedItem as Account;
+            _saveSettings.IndexConnectToDiscordRPC = AccountsDataGrid.SelectedIndex;
+            _saveSettings.AccountConnectToDiscordRPC = AccountsDataGrid.SelectedItem as Account;
             Utilities.SetPresence();
         }
 
@@ -709,8 +729,8 @@ namespace QLTK
         {
             if (!canSetRichPresence)
                 return;
-            SaveSettings.Instance.indexConnectToDiscordRPC = -1;
-            SaveSettings.accountConnectToDiscordRPC = null;
+            _saveSettings.IndexConnectToDiscordRPC = -1;
+            _saveSettings.AccountConnectToDiscordRPC = null;
             Utilities.SetPresence();
         }
 
