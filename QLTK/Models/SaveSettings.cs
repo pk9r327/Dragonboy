@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace QLTK.Models
@@ -17,7 +18,7 @@ namespace QLTK.Models
         public int IndexConnectToDiscordRPC { get; set; } = -1;
 
         [LitJSON.JsonSkip]
-        public Account AccountConnectToDiscordRPC { get; set; }
+        public NroAccount AccountConnectToDiscordRPC { get; set; }
 
         private SaveSettings LoadSaveSettings()
         {
@@ -42,11 +43,11 @@ namespace QLTK.Models
             }
         }
 
-        public void Save()
+        public async Task SaveAsync()
         {
             try
             {
-                File.WriteAllText(_appConfig.PathSettings,
+                await File.WriteAllTextAsync(_appConfig.PathSettings,
                     LitJson.JsonMapper.ToJson(this));
             }
             catch (Exception e)

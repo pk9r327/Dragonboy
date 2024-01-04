@@ -25,16 +25,16 @@ namespace QLTK
 
         internal static DevelopStatus currentDevelopStatus;
 
-        internal static List<Server> LoadServersFromFile()
+        public static IEnumerable<NroServer> LoadServersFromFile()
         {
-            List<Server> servers = [];
+            List<NroServer> servers = [];
             if (File.Exists("ModData\\Servers.txt"))
                 foreach (string server in File.ReadAllLines("ModData\\Servers.txt"))
                 {
                     try
                     {
                         string[] strings = server.Split(['|']);
-                        servers.Add(new Server(strings[0], strings[1], int.Parse(strings[2]), int.Parse(strings[3])));
+                        servers.Add(new NroServer(strings[0], strings[1], int.Parse(strings[2]), int.Parse(strings[3])));
                     }
                     catch (Exception) { }
                 }
@@ -311,6 +311,16 @@ namespace QLTK
             var bytes = File.ReadAllBytes(QLTKPath);
             var hashed = MD5.HashData(bytes);
             return BitConverter.ToString(hashed).Replace("-", "");
+        }
+
+        private static bool ExistedWindow(NroAccount account, out IntPtr hWnd)
+        {
+            hWnd = IntPtr.Zero;
+            if (account.process == null || account.process.HasExited)
+                return false;
+
+            hWnd = account.process.MainWindowHandle;
+            return hWnd != IntPtr.Zero;
         }
     }
 

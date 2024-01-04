@@ -4,7 +4,7 @@ using System.Net.Sockets;
 
 namespace QLTK.Models
 {
-    public class Account : INotifyPropertyChanged
+    public class NroAccount : INotifyPropertyChanged
     {
         private string _status;
         private string _username;
@@ -237,8 +237,8 @@ namespace QLTK.Models
         [LitJSON.JsonSkip]
         public Socket workSocket;
 
-        [LitJSON.JsonSkip]
-        public Server server => MainWindow.Servers[this.indexServer];
+        //[LitJSON.JsonSkip]
+        //public NroServer server => MainWindow.Servers[this.indexServer];
 
         [LitJSON.JsonSkip]
         public string planet
