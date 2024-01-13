@@ -1,4 +1,5 @@
-﻿using QLTK.Models;
+﻿using QLTK.Extensions;
+using QLTK.Models;
 using QLTK.Services;
 using QLTK.ViewModels;
 using System;
@@ -29,28 +30,15 @@ public partial class MainPage : Page
 
     public MainPage()
     {
+        _mainViewModel = App.Current.GetService<MainViewModel>()!;
+        _mainService = App.Current.GetService<MainService>()!;
+
         InitializeComponent();
+        DataContext = _mainViewModel;
 
-        new Thread(() => AsynchronousSocketListener.StartListening())
-        {
-            IsBackground = true,
-            Name = "AsynchronousSocketListener.StartListening"
-        }.Start();
-
-        _mainService.LoadAccountsAsync().Wait();
+        //_mainService.LoadAccountsAsync().Wait();
         //_mainService.LoadSaveSettings();
-        if (_saveSettings.IndexConnectToDiscordRPC >= 0 && _saveSettings.IndexConnectToDiscordRPC < AccountsDataGrid.Items.Count)
-            _saveSettings.AccountConnectToDiscordRPC = AccountsDataGrid.Items[_saveSettings.IndexConnectToDiscordRPC] as NroAccount;
-        new Thread(async () =>
-        {
-            await Utilities.CheckUpdateAndNotification();
-            Dispatcher.Invoke(() => Title = Utilities.GetWindowTitle());
-            Utilities.SetPresence();
-        })
-        {
-            IsBackground = true,
-            Name = "CheckUpdateAndNotification"
-        }.Start();
+        
     }
 
     private static void SendMessageToAccounts(List<NroAccount> accounts, object message)
@@ -87,30 +75,7 @@ public partial class MainPage : Page
 
 
     #region Processes
-    private async Task ShowWindowAsync(IntPtr hWnd)
-    {
-        Utilities.ShowWindowAsync(hWnd, 1);
-        Utilities.SetForegroundWindow(hWnd);
-        await Task.Delay(100);
-
-        Utilities.GetWindowRect(hWnd, out RECT rect);
-
-        int xBase = (int)this.ActualWidth;
-
-        double primaryScreenWidth = SystemParameters.PrimaryScreenWidth;
-        double primaryScreenHeight = SystemParameters.PrimaryScreenHeight;
-
-        if (rect.left < xBase || rect.right > primaryScreenWidth ||
-            rect.top < 0 || rect.bottom > primaryScreenHeight)
-        {
-            Utilities.MoveWindow(
-                hWnd: hWnd,
-                x: xBase, y: 0,
-                width: rect.right - rect.left,
-                height: rect.bottom - rect.top,
-                bRepaint: true);
-        }
-    }
+    
 
     //private void ArrangeAllWindows(int type)
     //{
@@ -288,27 +253,6 @@ public partial class MainPage : Page
         ((NroAccount)e.Row.Item).number = e.Row.GetIndex();
     }
 
-    private void AccountsDataGird_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (this.AccountsDataGrid.SelectedItem is NroAccount account)
-        {
-            this.UsernameTextBox.Text = account.username;
-            this.PasswordPasswordBox.Password = account.password;
-            this.ServerComboBox.SelectedIndex = account.indexServer;
-            canSetRichPresence = false;
-            if (account.Equals(_saveSettings.AccountConnectToDiscordRPC))
-                IsDisplayInDiscordRichPresence.IsChecked = true;
-            else
-                IsDisplayInDiscordRichPresence.IsChecked = false;
-            canSetRichPresence = true;
-        }
-    }
-
-    private async void AccountsDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        
-    }
-
     private void SelectAllButton_Click(object sender, RoutedEventArgs e)
     {
         this.AccountsDataGrid.SelectedItems.Clear();
@@ -353,24 +297,6 @@ public partial class MainPage : Page
             this.ChatButton_Click(sender, null);
             e.Handled = true;
         }
-    }
-
-    private void IsDisplayInDiscordRichPresence_Checked(object sender, RoutedEventArgs e)
-    {
-        if (!canSetRichPresence)
-            return;
-        _saveSettings.IndexConnectToDiscordRPC = AccountsDataGrid.SelectedIndex;
-        _saveSettings.AccountConnectToDiscordRPC = AccountsDataGrid.SelectedItem as NroAccount;
-        Utilities.SetPresence();
-    }
-
-    private void IsDisplayInDiscordRichPresence_Unchecked(object sender, RoutedEventArgs e)
-    {
-        if (!canSetRichPresence)
-            return;
-        _saveSettings.IndexConnectToDiscordRPC = -1;
-        _saveSettings.AccountConnectToDiscordRPC = null;
-        Utilities.SetPresence();
     }
 
     private void AccountsDataGrid_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

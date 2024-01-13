@@ -1,6 +1,10 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using QLTK.Models;
+using QLTK.Services;
+using QLTK.ViewModels;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -13,15 +17,21 @@ namespace QLTK;
 
 public partial class App : Application
 {
-    private IHost _host;
+    private IHost? _host;
 
-    public T GetService<T>()
+    public T? GetService<T>()
         where T : class
-        => _host.Services.GetService(typeof(T)) as T;
+        => _host?.Services.GetService(typeof(T)) as T;
 
     public App()
     {
     }
+
+    /// <summary>
+    /// Gets the current <see cref="App"/> instance in use
+    /// </summary>
+    public new static App Current => (App)Application.Current;
+
 
     private async void OnStartup(object sender, StartupEventArgs e)
     {
@@ -40,7 +50,8 @@ public partial class App : Application
         //{
         //    { ToastNotificationActivationHandler.ActivationArguments, string.Empty }
         //};
-        var appLocation = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+        var appLocation = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? 
+            throw new DirectoryNotFoundException("Cannot find the application location");
 
         // For more information about .NET generic host see  https://docs.microsoft.com/aspnet/core/fundamentals/host/generic-host?view=aspnetcore-3.0
         _host = Host.CreateDefaultBuilder(e.Args)
@@ -63,14 +74,28 @@ public partial class App : Application
 
     private void ConfigureServices(HostBuilderContext context, IServiceCollection services)
     {
+        // App Host
+        services.AddHostedService<ApplicationHostService>();
 
+        services.AddSingleton<SaveSettings>();
+        services.AddSingleton<AsynchronousSocketListener>();
+
+        services.AddSingleton<MainViewModel>();
+
+        services.AddSingleton<MainService>();
+
+        // Configuration
+        services.Configure<AppConfig>(context.Configuration.GetSection(nameof(AppConfig)));
     }
 
     private async void OnExit(object sender, ExitEventArgs e)
     {
-        await _host.StopAsync();
-        _host.Dispose();
-        _host = null;
+        if (_host is not null)
+        {
+            await _host.StopAsync();
+            _host.Dispose();
+            _host = null;
+        }
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

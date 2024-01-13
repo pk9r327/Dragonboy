@@ -1,4 +1,6 @@
-﻿using System;
+﻿using LitJson;
+using Microsoft.Extensions.Options;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
@@ -18,14 +20,25 @@ namespace QLTK.Models
         public int IndexConnectToDiscordRPC { get; set; } = -1;
 
         [LitJSON.JsonSkip]
-        public NroAccount AccountConnectToDiscordRPC { get; set; }
+        public NroAccount? AccountConnectToDiscordRPC { get; set; }
 
-        private SaveSettings LoadSaveSettings()
+        public SaveSettings(IOptions<AppConfig> config)
+        {
+            _appConfig = config.Value;
+        }
+
+        private void LoadSaveSettings()
         {
             try
             {
-                return LitJson.JsonMapper.ToObject<SaveSettings>(
-                    File.ReadAllText(_appConfig.PathSettings));
+                var saveSettingsJson = File.ReadAllText(_appConfig.PathSettings);
+                var saveSettingsObject = JsonMapper.ToObject(saveSettingsJson);
+                VersionNotification = saveSettingsObject["VersionNotification"].ToString();
+                Size = saveSettingsObject["Size"].ToString();
+                LowGraphic = int.Parse(saveSettingsObject["LowGraphic"].ToString());
+                TypeSize = int.Parse(saveSettingsObject["TypeSize"].ToString());
+                RowDetailsMode = int.Parse(saveSettingsObject["RowDetailsMode"].ToString());
+                IndexConnectToDiscordRPC = int.Parse(saveSettingsObject["IndexConnectToDiscordRPC"].ToString());
             }
             catch (Exception e)
             {
@@ -35,11 +48,13 @@ namespace QLTK.Models
 
                 if (r == MessageBoxResult.Yes)
                 {
-                    return new SaveSettings();
+                    //return new SaveSettings();
                 }
+                else
+                {
+                    Application.Current.Shutdown();
 
-                Application.Current.Shutdown();
-                return null;
+                }
             }
         }
 
@@ -47,8 +62,8 @@ namespace QLTK.Models
         {
             try
             {
-                await File.WriteAllTextAsync(_appConfig.PathSettings,
-                    LitJson.JsonMapper.ToJson(this));
+                var saveSettingJson = LitJson.JsonMapper.ToJson(this);
+                await File.WriteAllTextAsync(_appConfig.PathSettings, saveSettingJson);
             }
             catch (Exception e)
             {

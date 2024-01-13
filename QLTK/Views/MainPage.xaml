@@ -2,6 +2,7 @@
     x:Class="QLTK.Views.MainPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:Behaviors="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:QLTK.Views"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
@@ -308,11 +309,19 @@
                         IsReadOnly="True"
                         ItemsSource="{Binding NroAccounts}"
                         LoadingRow="AccountsDataGrid_LoadingRow"
-                        MouseDoubleClick="AccountsDataGrid_MouseDoubleClick"
                         PreviewMouseWheel="AccountsDataGrid_PreviewMouseWheel"
                         RowDetailsTemplate="{StaticResource DetailsAccountTemplate}"
                         RowDetailsVisibilityMode="{Binding SelectedValue, ElementName=RowDetailsModeComboBox}"
-                        SelectionChanged="AccountsDataGird_SelectionChanged">
+                        SelectedIndex="{Binding SelectedAccountIndex}">
+
+                        <Behaviors:Interaction.Triggers>
+                            <Behaviors:EventTrigger EventName="MouseDoubleClick">
+                                <Behaviors:InvokeCommandAction Command="{Binding HandleAccountsDoubleClickCommand}" />
+                            </Behaviors:EventTrigger>
+                            <Behaviors:EventTrigger EventName="SelectionChanged">
+                                <Behaviors:InvokeCommandAction Command="{Binding HandleSelectedAccountChangedCommand}" />
+                            </Behaviors:EventTrigger>
+                        </Behaviors:Interaction.Triggers>
 
                         <DataGrid.Columns>
                             <DataGridTextColumn Binding="{Binding number}" Header="STT" />
@@ -521,7 +530,8 @@
                         <TextBox
                             x:Name="UsernameTextBox"
                             Margin="5"
-                            materialDesign:HintAssist.Hint="Tên đăng nhập" />
+                            materialDesign:HintAssist.Hint="Tên đăng nhập"
+                            Text="{Binding UsernameText}" />
                         <PasswordBox
                             x:Name="PasswordPasswordBox"
                             Margin="5"
@@ -532,7 +542,7 @@
                             materialDesign:HintAssist.Hint="Máy chủ"
                             DisplayMemberPath="Name"
                             ItemsSource="{Binding NroServers}"
-                            SelectedIndex="0" />
+                            SelectedIndex="{Binding SelectedServerIndex}" />
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition />
@@ -678,12 +688,11 @@
                             Content="Tiền"
                             IsChecked="True" />
                         <CheckBox
-                            x:Name="IsDisplayInDiscordRichPresence"
+                            x:Name="DisplayInDiscordRichPresence"
                             Margin="5,5,5,5"
-                            Checked="IsDisplayInDiscordRichPresence_Checked"
+                            Command="{Binding}"
                             Content="Hiển thị trong Discord Rich Presence"
-                            IsChecked="False"
-                            Unchecked="IsDisplayInDiscordRichPresence_Unchecked" />
+                            IsChecked="{Binding IsDisplayInDiscordRichPresence}" />
                     </StackPanel>
                 </materialDesign:Card>
             </StackPanel>

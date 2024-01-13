@@ -1,4 +1,6 @@
-﻿using QLTK.Models;
+﻿using Microsoft.Extensions.Options;
+using QLTK.Extensions;
+using QLTK.Models;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,8 +13,9 @@ using System.Windows;
 namespace QLTK.Services;
 public class MainService
 {
-    private AppConfig _appConfig;
+    private AsynchronousSocketListener _socketListener;
     private SaveSettings _saveSettings;
+    private AppConfig _appConfig;
 
     public int GameWidth { get; set; }
     public int GameHeight { get; set; }
@@ -22,12 +25,14 @@ public class MainService
 
     public List<NroAccount> NroAccounts { get; private set; }
 
-    public MainService()
+    public MainService(AsynchronousSocketListener socketListener, SaveSettings saveSettings, IOptions<AppConfig> appConfig)
     {
-        InitServers();
+        _socketListener = socketListener;
+        _saveSettings = saveSettings;
+        _appConfig = appConfig.Value;
     }
 
-    void InitServers()
+    public void LoadServers()
     {
         NroServers =
         [
@@ -131,7 +136,7 @@ public class MainService
         account.status = "Đang khởi động...";
         //this.AccountsDataGrid.Items.Refresh();
 
-        AsynchronousSocketListener.WaitingAccounts.Add(account);
+        _socketListener.WaitingAccounts.Add(account);
 
         var argumentsBuilder = new StringBuilder()
             .AppendFormat("-port {0} ", _appConfig.PortListener)
@@ -185,7 +190,7 @@ public class MainService
     {
         foreach (var account in accounts)
         {
-            if (ExistedWindow(account, out IntPtr hWnd))
+            if (account.ExistedWindow(out IntPtr hWnd))
             {
                 Utilities.ShowWindowAsync(hWnd, 1);
                 Utilities.SetForegroundWindow(hWnd);
@@ -205,7 +210,7 @@ public class MainService
 
         for (int i = 0; i < accounts.Count(); i++)
         {
-            if (!ExistedWindow(accounts.ElementAt(i), out IntPtr hWnd))
+            if (!accounts.ElementAt(i).ExistedWindow(out IntPtr hWnd))
                 continue;
 
             if (!Utilities.GetWindowRect(hWnd, out RECT rect))
@@ -226,6 +231,31 @@ public class MainService
             {
                 cy = 0;
             }
+        }
+    }
+
+    public async Task ShowWindowAsync(IntPtr hWnd)
+    {
+        Utilities.ShowWindowAsync(hWnd, 1);
+        Utilities.SetForegroundWindow(hWnd);
+        await Task.Delay(100);
+
+        Utilities.GetWindowRect(hWnd, out RECT rect);
+
+        int xBase = (int)Utilities.GetMainWindow().ActualWidth;
+
+        double primaryScreenWidth = SystemParameters.PrimaryScreenWidth;
+        double primaryScreenHeight = SystemParameters.PrimaryScreenHeight;
+
+        if (rect.left < xBase || rect.right > primaryScreenWidth ||
+            rect.top < 0 || rect.bottom > primaryScreenHeight)
+        {
+            Utilities.MoveWindow(
+                hWnd: hWnd,
+                x: xBase, y: 0,
+                width: rect.right - rect.left,
+                height: rect.bottom - rect.top,
+                bRepaint: true);
         }
     }
 

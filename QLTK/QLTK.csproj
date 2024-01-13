@@ -8,6 +8,7 @@
 		<ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
 		<ApplicationIcon>icon.ico</ApplicationIcon>
 		<OutputPath>..\Game\</OutputPath>
+		<Nullable>Enable</Nullable>
 		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 	</PropertyGroup>
 
@@ -21,10 +22,6 @@
 		<DebugSymbols>true</DebugSymbols>
 	</PropertyGroup>
 
-	<PropertyGroup>
-		<StartupObject>QLTK.Program</StartupObject>
-	</PropertyGroup>
-
 	<ItemGroup>
 		<Content Include="icon.ico" />
 	</ItemGroup>
@@ -36,6 +33,7 @@
 		<PackageReference Include="MaterialDesignThemes" Version="4.5.0" />
 		<PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.77" />
 		<PackageReference Include="ShowMeTheXAML" Version="2.0.0" />
 		<PackageReference Include="ShowMeTheXAML.MSBuild" Version="2.0.0" />
 		<PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
@@ -50,6 +48,12 @@
 		<Reference Include="LitJSON">
 			<HintPath>..\Lib\LitJson.dll</HintPath>
 		</Reference>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="appsettings.json">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
 	</ItemGroup>
 
 	<PropertyGroup>

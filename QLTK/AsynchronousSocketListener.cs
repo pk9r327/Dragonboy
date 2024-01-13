@@ -1,7 +1,10 @@
 ﻿using DiscordRPC;
 using LitJson;
+using Microsoft.Extensions.Options;
+using QLTK.Extensions;
 using QLTK.Models;
 using QLTK.Properties;
+using QLTK.Services;
 using QLTK.ViewModels;
 using System;
 using System.Collections.Generic;
@@ -28,18 +31,25 @@ namespace QLTK
         public NroAccount account = null;
     }
 
-    public static class AsynchronousSocketListener
+    public class AsynchronousSocketListener
     {
-        public static List<NroAccount> WaitingAccounts { get; } = [];
+        public List<NroAccount> WaitingAccounts { get; } = [];
 
         // Thread signal.  
-        public static ManualResetEvent allDone { get; } = new ManualResetEvent(false);
+        public ManualResetEvent allDone { get; } = new ManualResetEvent(false);
 
-        private static AppConfig _appConfig;
-        private static SaveSettings _saveSettings;
-        private static MainViewModel _mainViewModel;
+        private SaveSettings _saveSettings;
+        //private MainService _mainService;
+        private AppConfig _appConfig;
 
-        private static void onMessage(JsonData msg, StateObject state)
+        public AsynchronousSocketListener(SaveSettings saveSettings, IOptions<AppConfig> appConfig)
+        {
+            _saveSettings = saveSettings;
+            //_mainService = mainService;
+            _appConfig = appConfig.Value;
+        }
+
+        private void onMessage(JsonData msg, StateObject state)
         {
             string action = (string)msg["action"];
             switch (action)
@@ -80,10 +90,10 @@ namespace QLTK
                     state.account.xu = (long)msg["xu"];
                     state.account.luong = (int)msg["luong"];
                     state.account.luongKhoa = (int)msg["luongKhoa"];
-                    if (_saveSettings.AccountConnectToDiscordRPC != null && state.account == _saveSettings.AccountConnectToDiscordRPC)
-                        Utilities.SetPresence($"Map: {state.account.mapName} [{state.account.mapID}], Khu: {state.account.zoneID}", $"{state.account.cName} ({_mainViewModel.NroServers[state.account.indexServer].Name})", Program.timestampsStartQLTK);
-                    else if (_saveSettings.AccountConnectToDiscordRPC == null || (_saveSettings.AccountConnectToDiscordRPC.process != null && _saveSettings.AccountConnectToDiscordRPC.process.HasExited))
-                        Utilities.SetPresence("Thông tin bị ẩn", "Đã đăng nhập", Program.timestampsStartQLTK);
+                    //if (_saveSettings.AccountConnectToDiscordRPC != null && state.account == _saveSettings.AccountConnectToDiscordRPC)
+                    //    Utilities.SetPresence($"Map: {state.account.mapName} [{state.account.mapID}], Khu: {state.account.zoneID}", $"{state.account.cName} ({_mainViewModel.NroServers[state.account.indexServer].Name})", Program.timestampsStartQLTK);
+                    //else if (_saveSettings.AccountConnectToDiscordRPC == null || (_saveSettings.AccountConnectToDiscordRPC.process != null && _saveSettings.AccountConnectToDiscordRPC.process.HasExited))
+                    //    Utilities.SetPresence("Thông tin bị ẩn", "Đã đăng nhập", Program.timestampsStartQLTK);
                     break;
                 case "setStatus":
                     state.account.status = (string)msg["status"];
@@ -92,11 +102,11 @@ namespace QLTK
                 case "syncKeyReleased":
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        _mainViewModel.NroAccounts.ForEach(a =>
+                        _mainService.NroAccounts.ForEach(a =>
                         {
                             if (a.workSocket?.Connected == true && a != state.account)
                             {
-                                sendMessage(a, new
+                                a.sendMessage(new
                                 {
                                     action = (string)msg["action"],
                                     keyCode = (int)msg["keyCode"],
@@ -111,27 +121,22 @@ namespace QLTK
                     state.account = WaitingAccounts.Find(a => a.process.Id == id);
                     state.account.workSocket = state.workSocket;
 
-                    sendMessage(state.account, new
+                    state.account.sendMessage(new
                     {
                         state.account.username,
                         state.account.password,
-                        server = _mainViewModel.NroServers[state.account.indexServer],
-                        sizeData = _mainViewModel.SizeData
+                        server = _mainService.NroServers[state.account.indexServer],
+                        //sizeData = _mainService.SizeData
                     });
-                    if (Application.Current.Dispatcher.Invoke(() => _mainViewModel.NroAccounts.Where(a => a.process != null && !a.process.HasExited).Count() == 1))
-                        Utilities.SetPresence("Đang đăng nhập...", "", Program.timestampsStartQLTK = Timestamps.Now);
+                    //if (Application.Current.Dispatcher.Invoke(() => _mainViewModel.NroAccounts.Where(a => a.process != null && !a.process.HasExited).Count() == 1))
+                    //    Utilities.SetPresence("Đang đăng nhập...", "", Program.timestampsStartQLTK = Timestamps.Now);
                     break;
                 default:
                     break;
             }
         }
 
-        public static void sendMessage(this NroAccount account, object obj)
-        {
-            Send(account.workSocket, JsonMapper.ToJson(obj));
-        }
-
-        public static void StartListening()
+        public void StartListening()
         {
             // Establish the local endpoint for the socket.  
             // Dns.GetHostName returns the name of the
@@ -175,7 +180,7 @@ namespace QLTK
             }
         }
 
-        public static void AcceptCallback(IAsyncResult ar)
+        public void AcceptCallback(IAsyncResult ar)
         {
             // Signal the main thread to continue.  
             allDone.Set();
@@ -194,7 +199,7 @@ namespace QLTK
                 new AsyncCallback(ReadCallback), state);
         }
 
-        public static void ReadCallback(IAsyncResult ar)
+        public void ReadCallback(IAsyncResult ar)
         {
             string content = string.Empty;
 
@@ -213,7 +218,7 @@ namespace QLTK
                 state.account.status = "-";
                 if ((_saveSettings.IndexConnectToDiscordRPC == -1 || state.account == _saveSettings.AccountConnectToDiscordRPC) &&
                     Application.Current.Dispatcher.Invoke(() =>
-                        !_mainViewModel.NroAccounts.Where(a => a.status != "-" && !string.IsNullOrEmpty(a.status)).Any()))
+                        !_mainService.NroAccounts.Where(a => a.status != "-" && !string.IsNullOrEmpty(a.status)).Any()))
                 {
                     Utilities.SetPresence();
                 }
@@ -232,7 +237,7 @@ namespace QLTK
                     handler.Shutdown(SocketShutdown.Both);
                     handler.Close();
                     state.account.status = "-";
-                    if ((_saveSettings.IndexConnectToDiscordRPC == -1 || state.account == _saveSettings.AccountConnectToDiscordRPC) && Application.Current.Dispatcher.Invoke(() => !_mainViewModel.NroAccounts.Where(a => a.status != "-" && !string.IsNullOrEmpty(a.status)).Any()))
+                    if ((_saveSettings.IndexConnectToDiscordRPC == -1 || state.account == _saveSettings.AccountConnectToDiscordRPC) && Application.Current.Dispatcher.Invoke(() => !_mainService.NroAccounts.Where(a => a.status != "-" && !string.IsNullOrEmpty(a.status)).Any()))
                         Utilities.SetPresence();
                     return;
                 }
@@ -244,7 +249,7 @@ namespace QLTK
             }
         }
 
-        private static void SendCallback(IAsyncResult ar)
+        private void SendCallback(IAsyncResult ar)
         {
             try
             {
@@ -260,7 +265,7 @@ namespace QLTK
             }
         }
 
-        private static void Send(Socket handler, string data)
+        public void Send(Socket handler, string data)
         {
             // Convert the string data to byte data using ASCII encoding.  
             byte[] byteData = Encoding.ASCII.GetBytes(data);

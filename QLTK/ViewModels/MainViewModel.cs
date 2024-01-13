@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using QLTK.Extensions;
 using QLTK.Models;
 using QLTK.Services;
 using System;
@@ -13,6 +14,7 @@ namespace QLTK.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private MainService _mainService;
+    private SaveSettings _saveSettings;
 
     public object SizeData { get; private set; }
 
@@ -26,6 +28,15 @@ public partial class MainViewModel : ObservableObject
     private NroAccount? _selectedAccount;
 
     [ObservableProperty]
+    private int _selectedAccountIndex;
+
+    [ObservableProperty]
+    private string _usernameText;
+
+    [ObservableProperty]
+    private int _selectedServerIndex = 0;
+
+    [ObservableProperty]
     private string _sizeText;
 
     [ObservableProperty]
@@ -37,12 +48,16 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _lowGraphic;
 
+    [ObservableProperty]
+    private bool _isDisplayInDiscordRichPresence;
 
     private bool _canSetRichPresence;
 
 
-    public MainViewModel()
+    public MainViewModel(MainService mainService, SaveSettings saveSettings)
     {
+        _mainService = mainService;
+        _saveSettings = saveSettings;
     }
 
     [RelayCommand]
@@ -116,6 +131,24 @@ public partial class MainViewModel : ObservableObject
         EnableMainGrid = true;
     }
 
+    [RelayCommand]
+    void HandleSelectedAccountChanged()
+    {
+        if (SelectedAccount is not null)
+        {
+            UsernameText = SelectedAccount.username;
+            //this.PasswordPasswordBox.Password = SelectedAccount.password;
+            SelectedServerIndex = SelectedAccount.indexServer;
+
+            _canSetRichPresence = false;
+
+            IsDisplayInDiscordRichPresence = SelectedAccount.Equals(_saveSettings.AccountConnectToDiscordRPC);
+
+            _canSetRichPresence = true;
+        }
+    }
+
+    [RelayCommand]
     async Task HandleAccountsDoubleClick()
     {
         if (SelectedAccount is not null)
@@ -123,27 +156,48 @@ public partial class MainViewModel : ObservableObject
             _canSetRichPresence = true;
             EnableMainGrid = false;
 
-            if (ExistedWindow(account, out IntPtr hWnd))
+            if (SelectedAccount.ExistedWindow(out IntPtr hWnd))
             {
-                if (!FullScreenCheckBox.IsChecked.Value)
-                    await this.ShowWindowAsync(hWnd);
-                this.MainGrid.IsEnabled = true;
+                if (!_mainService.GameFullScreen)
+                    await _mainService.ShowWindowAsync(hWnd);
+                EnableMainGrid = true;
                 return;
             }
 
-            if (!this.UpdateSizeData())
+            if (!UpdateSizeData())
             {
                 MessageBox.Show("Kích thước cửa sổ không hợp lệ");
-                this.MainGrid.IsEnabled = true;
+                EnableMainGrid = true;
                 return;
             }
 
-            if (account.Equals(_saveSettings.AccountConnectToDiscordRPC))
-                IsDisplayInDiscordRichPresence_Checked(sender, null);
-            await this.OpenGameAsync(account);
+            if (SelectedAccount.Equals(_saveSettings.AccountConnectToDiscordRPC))
+                HandleDisplayInDiscordRichPresenceChanged();
 
-            this.MainGrid.IsEnabled = true;
+            await _mainService.OpenGameAsync(SelectedAccount);
+
+            EnableMainGrid = true;
         }
+    }
+
+    [RelayCommand]
+    void HandleDisplayInDiscordRichPresenceChanged()
+    {
+        if (!_canSetRichPresence)
+            return;
+
+        if (IsDisplayInDiscordRichPresence)
+        {
+            _saveSettings.IndexConnectToDiscordRPC = SelectedAccountIndex;
+            _saveSettings.AccountConnectToDiscordRPC = SelectedAccount;
+        }
+        else
+        {
+            _saveSettings.IndexConnectToDiscordRPC = -1;
+            _saveSettings.AccountConnectToDiscordRPC = null;
+        }
+
+        Utilities.SetPresence();
     }
 
     bool UpdateSizeData()

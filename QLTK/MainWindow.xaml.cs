@@ -26,6 +26,8 @@ namespace QLTK
         public MainWindow()
         {
             InitializeComponent();
+
+            _mainService = App.Current.GetService<MainService>()!;
         }
 
         private async void Window_Closed(object sender, EventArgs e)
